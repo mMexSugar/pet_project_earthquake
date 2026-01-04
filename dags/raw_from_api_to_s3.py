@@ -27,8 +27,7 @@ SHORT_DESCRIPTION = "SHORT DESCRIPTION"
 
 args = {
     "owner": OWNER,
-    "start_date": pendulum.datetime(2025, 12, 1, tz="Europe/Kyiv"),
-    "catchup": True,
+    "start_date": pendulum.datetime(2026, 1, 1, tz="Europe/Kyiv"),
     "retries": 3,
     "retry_delay": pendulum.duration(hours=1),
 }
@@ -81,6 +80,7 @@ with DAG(
     default_args=args,
     tags=["s3", "raw"],
     description=SHORT_DESCRIPTION,
+    catchup=True,
 ) as dag:
     dag.doc_md = LONG_DESCRIPTION
 
