@@ -3,13 +3,13 @@ import logging
 import duckdb
 import pendulum
 from airflow import DAG
-from airflow.models import Variable
-from airflow.operators.empty import EmptyOperator
-from airflow.operators.python import PythonOperator
-from airflow.sensors.external_task import ExternalTaskSensor
+from airflow.sdk import Variable
+from airflow.providers.standard.operators.empty import EmptyOperator
+from airflow.providers.standard.operators.python import PythonOperator
+from airflow.providers.standard.sensors.external_task import ExternalTaskSensor
 
 # Конфигурация DAG
-OWNER = "i.korsakov"
+OWNER = "maksym"
 DAG_ID = "raw_from_s3_to_pg"
 
 # Используемые таблицы в DAG
@@ -17,13 +17,6 @@ LAYER = "raw"
 SOURCE = "earthquake"
 SCHEMA = "ods"
 TARGET_TABLE = "fct_earthquake"
-
-# S3
-ACCESS_KEY = Variable.get("access_key")
-SECRET_KEY = Variable.get("secret_key")
-
-# DuckDB
-PASSWORD = Variable.get("pg_password")
 
 LONG_DESCRIPTION = """
 # LONG DESCRIPTION
@@ -33,33 +26,46 @@ SHORT_DESCRIPTION = "SHORT DESCRIPTION"
 
 args = {
     "owner": OWNER,
-    "start_date": pendulum.datetime(2025, 5, 1, tz="Europe/Moscow"),
-    "catchup": True,
+    "start_date": pendulum.datetime(2026, 1, 1, tz="Europe/Kyiv"),
     "retries": 3,
     "retry_delay": pendulum.duration(hours=1),
 }
 
 
-def get_dates(**context) -> tuple[str, str]:
-    """"""
-    start_date = context["data_interval_start"].format("YYYY-MM-DD")
-    end_date = context["data_interval_end"].format("YYYY-MM-DD")
+# def get_dates(**context) -> tuple[str, str]:
+#     """"""
+#     start_date = context["data_interval_start"].to_iso8601_string()
+#     end_date = context["data_interval_end"].to_iso8601_string()
 
-    return start_date, end_date
+#     return start_date, end_date
+
+def get_dates(**context) -> tuple[str, str]:
+    end_dt = context["data_interval_end"]
+    start_dt = end_dt.subtract(days=1)
+    
+    return start_dt.to_iso8601_string(), end_dt.to_iso8601_string()
 
 
 def get_and_transfer_raw_data_to_ods_pg(**context):
     """"""
 
     start_date, end_date = get_dates(**context)
+
+    # S3
+    ACCESS_KEY = Variable.get("access_key")
+    SECRET_KEY = Variable.get("secret_key")
+
+    # DuckDB
+    PASSWORD = Variable.get("pg_password")
+
     logging.info(f"💻 Start load for dates: {start_date}/{end_date}")
     con = duckdb.connect()
 
     con.sql(
         f"""
         SET TIMEZONE='UTC';
-        INSTALL httpfs;
-        LOAD httpfs;
+        INSTALL httpfs; LOAD httpfs;
+        INSTALL postgres; LOAD postgres;
         SET s3_url_style = 'path';
         SET s3_endpoint = 'minio:9000';
         SET s3_access_key_id = '{ACCESS_KEY}';
@@ -129,19 +135,20 @@ def get_and_transfer_raw_data_to_ods_pg(**context):
         """,
     )
 
+    test_df = con.sql(f"SELECT * FROM read_parquet('s3://prod/{LAYER}/{SOURCE}/{start_date}/{start_date}_00-00-00.gz.parquet') LIMIT 5").df()
+    logging.info(f"📋 Sample data from S3:\n{test_df.to_string()}")
+
     con.close()
     logging.info(f"✅ Download for date success: {start_date}")
 
 
 with DAG(
     dag_id=DAG_ID,
-    schedule_interval="0 5 * * *",
+    schedule="0 2 * * *",
     default_args=args,
+    catchup=True,
     tags=["s3", "ods", "pg"],
     description=SHORT_DESCRIPTION,
-    concurrency=1,
-    max_active_tasks=1,
-    max_active_runs=1,
 ) as dag:
     dag.doc_md = LONG_DESCRIPTION
 

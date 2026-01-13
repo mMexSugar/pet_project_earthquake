@@ -3,7 +3,7 @@ import logging
 import duckdb
 import pendulum
 from airflow import DAG
-from airflow.models import Variable
+from airflow.sdk import Variable
 from airflow.providers.standard.operators.empty import EmptyOperator
 from airflow.providers.standard.operators.python import PythonOperator
 
@@ -14,10 +14,6 @@ DAG_ID = "raw_from_api_to_s3"
 # Используемые таблицы в DAG
 LAYER = "raw"
 SOURCE = "earthquake"
-
-# S3
-ACCESS_KEY = Variable.get("access_key")
-SECRET_KEY = Variable.get("secret_key")
 
 LONG_DESCRIPTION = """
 # LONG DESCRIPTION
@@ -33,16 +29,24 @@ args = {
 }
 
 
-def get_dates(**context) -> tuple[str, str]:
-    """"""
-    start_date = context["data_interval_start"].format("YYYY-MM-DD")
-    end_date = context["data_interval_end"].format("YYYY-MM-DD")
+# def get_dates(**context) -> tuple[str, str]:
+#     """"""
+#     start_date = context["data_interval_start"].to_iso8601_string()
+#     end_date = context["data_interval_end"].to_iso8601_string()
 
-    return start_date, end_date
+#     return start_date, end_date
+
+def get_dates(**context) -> tuple[str, str]:
+    end_dt = context["data_interval_end"]
+    start_dt = end_dt.subtract(days=1)
+    
+    return start_dt.to_iso8601_string(), end_dt.to_iso8601_string()
 
 
 def get_and_transfer_api_data_to_s3(**context):
     """"""
+    ACCESS_KEY = Variable.get("access_key")
+    SECRET_KEY = Variable.get("secret_key")
 
     start_date, end_date = get_dates(**context)
     logging.info(f"💻 Start load for dates: {start_date}/{end_date}")
@@ -76,7 +80,7 @@ def get_and_transfer_api_data_to_s3(**context):
 
 with DAG(
     dag_id=DAG_ID,
-    schedule="0 5 * * *",
+    schedule="0 2 * * *",
     default_args=args,
     tags=["s3", "raw"],
     description=SHORT_DESCRIPTION,
