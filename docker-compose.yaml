@@ -73,7 +73,7 @@ x-airflow-common:
     # WARNING: Use _PIP_ADDITIONAL_REQUIREMENTS option ONLY for a quick checks
     # for other purpose (development, test and especially production usage) build/extend Airflow image.
     # _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-duckdb==0.8.1}
-    _PIP_ADDITIONAL_REQUIREMENTS: ''
+    _PIP_ADDITIONAL_REQUIREMENTS: "apache-airflow-providers-postgres"
     # The following line can be used to set a custom config file, stored in the local config folder
     AIRFLOW_CONFIG: '/opt/airflow/config/airflow.cfg'
   volumes:
@@ -99,6 +99,8 @@ services:
     restart: always
     ports:
       - "5433:5432"
+    volumes:
+      - postgres-dwh-data:/var/lib/postgresql/data
 
   minio:
     image: minio/minio:RELEASE.2025-02-18T16-25-55Z
@@ -369,3 +371,4 @@ services:
 
 volumes:
   postgres-db-volume:
+  postgres-dwh-data:
