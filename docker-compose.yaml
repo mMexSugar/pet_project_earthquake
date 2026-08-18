@@ -116,14 +116,29 @@ services:
       - "9001:9001"
     
     
-  metabase:
+  superset:
     build:
       context: .
-      dockerfile: ./metabase/Dockerfile
-    container_name: metabase
+      dockerfile: ./superset/Dockerfile
+    container_name: superset
+    restart: unless-stopped
     ports:
-      - "3001:3000"
-
+      - "8088:8088"
+    environment:
+      - SUPERSET_SECRET_KEY=my_super_secret_key_for_superset_2026!
+      - MAPBOX_API_KEY=${MAPBOX_API_KEY}
+      - TALISMAN_ENABLED=False
+      - WTF_CSRF_ENABLED=False
+      - SUPERSET_METADATA_STORAGE=sqlite:////app/superset_home/superset.db
+    volumes:
+      - superset_home:/app/superset_home
+    command: >
+      bash -c "
+        superset db upgrade &&
+        superset fab create-admin --username admin --firstname Admin --lastname User --email admin@example.com --password admin &&
+        superset init &&
+        /usr/bin/run-server.sh
+      "
   postgres:
     image: postgres:16
     environment:
@@ -372,3 +387,4 @@ services:
 volumes:
   postgres-db-volume:
   postgres-dwh-data:
+  superset_home:
